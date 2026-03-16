@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>家庭家务管理</title>
+    <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-database-compat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root { --main: #6b63ff; --bg: #f4f7f9; --jerry: #4da3ff; --momo: #ff85a2; --hajime: #ffb84d; }
+        body { font-family: -apple-system, sans-serif; background: var(--bg); margin: 0; padding: 15px; display: flex; flex-direction: column; align-items: center; }
+        .card { background: white; width: 100%; max-width: 450px; padding: 20px; border-radius: 24px; box-shadow: 0 8px 20px rgba(0,0,0,0.05); box-sizing: border-box; }
+        .user-selector { display: flex; gap: 8px; margin-bottom: 20px; }
+        .user-btn { flex: 1; border: 2px solid #eee; padding: 10px 0; border-radius: 15px; cursor: pointer; background: white; text-align: center; font-weight: bold; font-size: 14px; }
+        .user-btn[data-user="Jerry"].active { border-color: var(--jerry); background: var(--jerry); color: white; }
+        .user-btn[data-user="momo"].active { border-color: var(--momo); background: var(--momo); color: white; }
+        .user-btn[data-user="hajime"].active { border-color: var(--hajime); background: var(--hajime); color: white; }
+        .quick-actions { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 25px; }
+        .action-btn { background: #fff; border: 1px solid #eef0f2; padding: 12px 5px; border-radius: 12px; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 5px; }
+        .action-btn:active { transform: scale(0.95); background: #f0f0f0; }
+        .view-tabs { display: flex; background: #eee; border-radius: 10px; padding: 3px; margin-bottom: 15px; }
+        .tab-btn { flex: 1; border: none; padding: 8px; border-radius: 8px; cursor: pointer; font-size: 13px; background: transparent; }
+        .tab-btn.active { background: white; box-shadow: 0 2px 5px rgba(0,0,0,0.1); font-weight: bold; }
+        .log-item { display: flex; align-items: center; padding: 12px; border-bottom: 1px solid #f8f8f8; }
+        .who-tag { width: 55px; text-align: center; font-size: 10px; padding: 2px 0; border-radius: 6px; color: white; margin-right: 10px; font-weight: bold; }
+        .who-tag.Jerry { background: var(--jerry); }
+        .who-tag.momo { background: var(--momo); }
+        .who-tag.hajime { background: var(--hajime); }
+        .task-info { flex: 1; font-size: 14px; color: #444; }
+        .task-time { font-size: 11px; color: #bbb; }
+        #chartContainer { width: 100%; height: 300px; display: none; padding: 10px 0; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2 style="text-align: center; margin-top: 0;">🏡 家务打卡</h2>
+        <div class="user-selector" id="userSelector">
+            <div class="user-btn active" data-user="Jerry">Jerry</div>
+            <div class="user-btn" data-user="momo">momo</div>
+            <div class="user-btn" data-user="hajime">hajime</div>
+        </div>
+        <div class="quick-actions">
+            <div class="action-btn" onclick="quickAdd('洗衣服')">🧺 洗衣服</div>
+            <div class="action-btn" onclick="quickAdd('收衣服')">👕 收衣服</div>
+            <div class="action-btn" onclick="quickAdd('做饭')">🍳 做饭</div>
+            <div class="action-btn" onclick="quickAdd('打扫卫生')">🧹 打扫卫生</div>
+            <div class="action-btn" onclick="quickAdd('扔垃圾')">🗑️ 扔垃圾</div>
+            <div class="action-btn" onclick="quickAdd('卫生间清洁')">🧼 卫生间</div>
+            <div class="action-btn" onclick="quickAdd('院子打理')">🌿 院子打理</div>
+            <div class="action-btn" onclick="quickAdd('监督顾一学习')">📚 监督学习</div>
+        </div>
+        <div class="view-tabs">
+            <button class="tab-btn active" onclick="switchView('list')">今日记录</button>
+            <button class="tab-btn" onclick="switchView('chart')">本月统计</button>
+        </div>
+        <ul id="taskList"></ul>
+        <div id="chartContainer"><canvas id="houseworkChart"></canvas></div>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyBGBEjgckcM80MFrDhfXnkbMYDdOxuENV4",
+            authDomain: "familytasks-d8f55.firebaseapp.com",
+            databaseURL: "https://familytasks-d8f55-default-rtdb.firebaseio.com",
+            projectId: "familytasks-d8f55",
+            storageBucket: "familytasks-d8f55.appspot.com",
+            messagingSenderId: "338064057290",
+            appId: "1:338064057290:web:ab4ce172d92a2010a7e533"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database().ref('housework_v3'); // 使用新路径避免冲突
+
+        let currentUser = "Jerry";
+        let myChart = null;
+
+        function getTodayStr() {
+            const d = new Date();
+            return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+        }
+
+        document.getElementById('userSelector').onclick = (e) => {
+            if (e.target.dataset.user) {
+                document.querySelectorAll('.user-btn').forEach(b => b.classList.remove('active'));
+                e.target.classList.add('active');
+                currentUser = e.target.dataset.user;
+            }
+        };
+
+        function quickAdd(name) {
+            const now = new Date();
+            db.push({
+                user: currentUser,
+                task: name,
+                date: getTodayStr(),
+                time: now.getHours() + ":" + now.getMinutes().toString().padStart(2,'0'),
+                timestamp: Date.now()
+            }).then(() => console.log("OK")).catch(e => alert("写入失败，请检查Firebase规则"));
+        }
+
+        db.orderByChild('timestamp').on('value', snap => {
+            const list = document.getElementById('taskList');
+            list.innerHTML = '';
+            const data = snap.val();
+            if (!data) return;
+            const today = getTodayStr();
+            Object.entries(data).filter(([id, item]) => item.date === today).reverse().forEach(([id, item]) => {
+                const li = document.createElement('li');
+                li.className = 'log-item';
+                li.innerHTML = `<div class="who-tag ${item.user}">${item.user}</div><div class="task-info"><b>${item.task}</b></div><div class="task-time">${item.time}</div>`;
+                list.appendChild(li);
+            });
+        });
+
+        function switchView(v) {
+            document.getElementById('taskList').style.display = v === 'list' ? 'block' : 'none';
+            document.getElementById('chartContainer').style.display = v === 'chart' ? 'block' : 'none';
+            document.querySelectorAll('.tab-btn').forEach((b, i) => b.classList.toggle('active', (i===0 && v==='list') || (i===1 && v==='chart')));
+            if(v === 'chart') updateChart();
+        }
+
+        function updateChart() {
+            db.once('value', snap => {
+                const data = snap.val() || {};
+                const stats = { Jerry: 0, momo: 0, hajime: 0 };
+                Object.values(data).forEach(item => { if(stats[item.user] !== undefined) stats[item.user]++; });
+                const ctx = document.getElementById('houseworkChart').getContext('2d');
+                if (myChart) myChart.destroy();
+                myChart = new Chart(ctx, {
+                    type: 'pie',
+                    data: {
+                        labels: ['Jerry', 'momo', 'hajime'],
+                        datasets: [{ data: [stats.Jerry, stats.momo, stats.hajime], backgroundColor: ['#4da3ff', '#ff85a2', '#ffb84d'] }]
+                    }
+                });
+            });
+        }
+    </script>
+</body>
+</html>
