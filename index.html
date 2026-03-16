@@ -3,64 +3,91 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>家庭家务管理</title>
+    <title>全功能家务管理系统</title>
     <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-database-compat.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        :root { --main: #6b63ff; --bg: #f4f7f9; --jerry: #4da3ff; --momo: #ff85a2; --hajime: #ffb84d; }
+        :root { --main: #6b63ff; --bg: #f4f7f9; --accent: #ff5e5e; }
         body { font-family: -apple-system, sans-serif; background: var(--bg); margin: 0; padding: 15px; display: flex; flex-direction: column; align-items: center; }
         .card { background: white; width: 100%; max-width: 450px; padding: 20px; border-radius: 24px; box-shadow: 0 8px 20px rgba(0,0,0,0.05); box-sizing: border-box; }
-        .user-selector { display: flex; gap: 8px; margin-bottom: 20px; }
-        .user-btn { flex: 1; border: 2px solid #eee; padding: 10px 0; border-radius: 15px; cursor: pointer; background: white; text-align: center; font-weight: bold; font-size: 14px; }
-        .user-btn[data-user="Jerry"].active { border-color: var(--jerry); background: var(--jerry); color: white; }
-        .user-btn[data-user="momo"].active { border-color: var(--momo); background: var(--momo); color: white; }
-        .user-btn[data-user="hajime"].active { border-color: var(--hajime); background: var(--hajime); color: white; }
+        
+        /* 管理面板 */
+        .admin-section { background: #f0f2f5; padding: 15px; border-radius: 15px; margin-bottom: 20px; display: none; }
+        .admin-title { font-size: 14px; font-weight: bold; margin-bottom: 10px; display: flex; justify-content: space-between; }
+        .admin-row { display: flex; gap: 5px; margin-bottom: 8px; }
+        .admin-row input { flex: 1; padding: 8px; border-radius: 8px; border: 1px solid #ddd; font-size: 14px; }
+        .admin-row button { background: var(--main); color: white; border: none; padding: 5px 15px; border-radius: 8px; cursor: pointer; }
+        .tag-list { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
+        .tag-item { background: #fff; padding: 4px 10px; border-radius: 20px; font-size: 12px; display: flex; align-items: center; border: 1px solid #eee; }
+        .tag-del { color: var(--accent); margin-left: 6px; cursor: pointer; font-weight: bold; }
+
+        /* 主界面 */
+        .user-selector { display: flex; gap: 8px; margin-bottom: 20px; overflow-x: auto; padding-bottom: 5px; }
+        .user-btn { flex-shrink: 0; min-width: 70px; border: 2px solid #eee; padding: 8px 12px; border-radius: 15px; cursor: pointer; background: white; text-align: center; font-weight: bold; font-size: 14px; transition: 0.2s; }
+        .user-btn.active { border-color: var(--main); background: var(--main); color: white; }
+        
         .quick-actions { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 25px; }
-        .action-btn { background: #fff; border: 1px solid #eef0f2; padding: 12px 5px; border-radius: 12px; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 5px; }
+        .action-btn { background: #fff; border: 1px solid #eef0f2; padding: 12px 5px; border-radius: 12px; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
         .action-btn:active { transform: scale(0.95); background: #f0f0f0; }
+
         .view-tabs { display: flex; background: #eee; border-radius: 10px; padding: 3px; margin-bottom: 15px; }
         .tab-btn { flex: 1; border: none; padding: 8px; border-radius: 8px; cursor: pointer; font-size: 13px; background: transparent; }
         .tab-btn.active { background: white; box-shadow: 0 2px 5px rgba(0,0,0,0.1); font-weight: bold; }
-        .log-item { display: flex; align-items: center; padding: 12px; border-bottom: 1px solid #f8f8f8; position: relative; }
-        .who-tag { width: 55px; text-align: center; font-size: 10px; padding: 2px 0; border-radius: 6px; color: white; margin-right: 10px; font-weight: bold; }
-        .who-tag.Jerry { background: var(--jerry); }
-        .who-tag.momo { background: var(--momo); }
-        .who-tag.hajime { background: var(--hajime); }
+        
+        .log-item { display: flex; align-items: center; padding: 12px; border-bottom: 1px solid #f8f8f8; }
+        .who-tag { background: var(--main); color: white; padding: 2px 8px; border-radius: 6px; font-size: 11px; margin-right: 10px; font-weight: bold; }
         .task-info { flex: 1; font-size: 14px; color: #444; }
         .task-time { font-size: 11px; color: #bbb; }
-        .del { color: #ddd; font-size: 18px; cursor: pointer; padding: 5px 10px; }
-        .del:hover { color: #ff5e5e; }
-        #chartContainer { width: 100%; height: 320px; display: none; padding: 10px 0; }
+        .del { color: #ddd; font-size: 18px; cursor: pointer; padding: 5px; }
+        
+        #chartContainer { width: 100%; display: none; text-align: center; }
+        .chart-desc { font-size: 11px; color: #999; margin-top: 10px; }
+        #manageToggle { font-size: 12px; color: var(--main); cursor: pointer; text-decoration: underline; }
     </style>
 </head>
 <body>
     <div class="card">
-        <h2 style="text-align: center; margin-top: 0;">🏡 家务打卡记录</h2>
-        <div class="user-selector" id="userSelector">
-            <div class="user-btn active" data-user="Jerry">Jerry</div>
-            <div class="user-btn" data-user="momo">momo</div>
-            <div class="user-btn" data-user="hajime">hajime</div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <h2 style="margin: 0; font-size: 20px;">🏡 家庭事务打卡</h2>
+            <div id="manageToggle" onclick="toggleAdmin()">管理设置</div>
         </div>
-        <div class="quick-actions">
-            <div class="action-btn" onclick="quickAdd('洗衣服')">🧺 洗衣服</div>
-            <div class="action-btn" onclick="quickAdd('收衣服')">👕 收衣服</div>
-            <div class="action-btn" onclick="quickAdd('做饭')">🍳 做饭</div>
-            <div class="action-btn" onclick="quickAdd('打扫卫生')">🧹 打扫卫生</div>
-            <div class="action-btn" onclick="quickAdd('扔垃圾')">🗑️ 扔垃圾</div>
-            <div class="action-btn" onclick="quickAdd('卫生间清洁')">🧼 卫生间</div>
-            <div class="action-btn" onclick="quickAdd('院子打理')">🌿 院子打理</div>
-            <div class="action-btn" onclick="quickAdd('监督顾一学习')">📚 监督学习</div>
+
+        <div class="admin-section" id="adminPanel">
+            <div class="admin-title">管理家庭成员</div>
+            <div class="admin-row">
+                <input type="text" id="newUserName" placeholder="输入名字...">
+                <button onclick="addItem('users', 'newUserName')">添加</button>
+            </div>
+            <div class="tag-list" id="userTags"></div>
+            
+            <div class="admin-title" style="margin-top:15px;">管理家务项目</div>
+            <div class="admin-row">
+                <input type="text" id="newTaskName" placeholder="如：收衣服...">
+                <button onclick="addItem('types', 'newTaskName')">添加</button>
+            </div>
+            <div class="tag-list" id="typeTags"></div>
+            <p style="font-size: 10px; color: #999; margin-top: 10px;">* 修改后，所有成员手机将实时同步</p>
         </div>
+        
+        <div class="user-selector" id="userSelector"></div>
+
+        <div class="quick-actions" id="actionGrid"></div>
+
         <div class="view-tabs">
-            <button class="tab-btn active" onclick="switchView('list')">今日动态</button>
-            <button class="tab-btn" onclick="switchView('chart')">贡献统计</button>
+            <button class="tab-btn active" onclick="switchView('list')">今日记录</button>
+            <button class="tab-btn" onclick="switchView('chart')">30天统计</button>
         </div>
-        <ul id="taskList"></ul>
-        <div id="chartContainer"><canvas id="houseworkChart"></canvas></div>
+
+        <ul id="taskList" style="padding: 0; margin: 0;"></ul>
+        <div id="chartContainer">
+            <canvas id="houseworkChart"></canvas>
+            <div class="chart-desc" id="chartPeriod">统计范围：最近30天</div>
+        </div>
     </div>
 
     <script>
+        // Firebase 配置 (基于你之前的项目)
         const firebaseConfig = {
             apiKey: "AIzaSyBGBEjgckcM80MFrDhfXnkbMYDdOxuENV4",
             authDomain: "familytasks-d8f55.firebaseapp.com",
@@ -71,9 +98,10 @@
             appId: "1:338064057290:web:ab4ce172d92a2010a7e533"
         };
         firebase.initializeApp(firebaseConfig);
-        const db = firebase.database().ref('housework_final');
+        const rootRef = firebase.database().ref('housework_pro_v1'); // 使用新路径
+        const db = rootRef.child('logs');
 
-        let currentUser = "Jerry";
+        let currentUser = "";
         let myChart = null;
 
         function getTodayStr() {
@@ -81,15 +109,55 @@
             return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
         }
 
-        document.getElementById('userSelector').onclick = (e) => {
-            if (e.target.dataset.user) {
-                document.querySelectorAll('.user-btn').forEach(b => b.classList.remove('active'));
-                e.target.classList.add('active');
-                currentUser = e.target.dataset.user;
-            }
-        };
+        function toggleAdmin() {
+            const panel = document.getElementById('adminPanel');
+            panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
+        }
 
+        // --- 动态添加/删除配置 ---
+        function addItem(path, inputId) {
+            const val = document.getElementById(inputId).value.trim();
+            if(val) {
+                rootRef.child(path).push(val);
+                document.getElementById(inputId).value = '';
+            }
+        }
+        function removeItem(path, id) {
+            if(confirm('确定删除此项吗？')) rootRef.child(path).child(id).remove();
+        }
+
+        // --- 实时同步配置数据 ---
+        rootRef.child('users').on('value', snap => {
+            const container = document.getElementById('userSelector');
+            const tags = document.getElementById('userTags');
+            container.innerHTML = ''; tags.innerHTML = '';
+            const data = snap.val() || {};
+            Object.entries(data).forEach(([id, name], index) => {
+                if(!currentUser && index === 0) currentUser = name;
+                container.innerHTML += `<div class="user-btn ${currentUser === name ? 'active' : ''}" onclick="selectUser('${name}')">${name}</div>`;
+                tags.innerHTML += `<div class="tag-item">${name}<span class="tag-del" onclick="removeItem('users','${id}')">×</span></div>`;
+            });
+        });
+
+        rootRef.child('types').on('value', snap => {
+            const grid = document.getElementById('actionGrid');
+            const tags = document.getElementById('typeTags');
+            grid.innerHTML = ''; tags.innerHTML = '';
+            const data = snap.val() || {};
+            Object.entries(data).forEach(([id, name]) => {
+                grid.innerHTML += `<div class="action-btn" onclick="quickAdd('${name}')">${name}</div>`;
+                tags.innerHTML += `<div class="tag-item">${name}<span class="tag-del" onclick="removeItem('types','${id}')">×</span></div>`;
+            });
+        });
+
+        function selectUser(name) {
+            currentUser = name;
+            document.querySelectorAll('.user-btn').forEach(b => b.classList.toggle('active', b.innerText === name));
+        }
+
+        // --- 打卡与记录 ---
         function quickAdd(name) {
+            if(!currentUser) return alert('请先在管理设置中添加成员');
             const now = new Date();
             db.push({
                 user: currentUser,
@@ -104,25 +172,21 @@
         db.orderByChild('timestamp').on('value', snap => {
             const list = document.getElementById('taskList');
             list.innerHTML = '';
-            const data = snap.val();
-            if (!data) return;
+            const data = snap.val() || {};
             const today = getTodayStr();
             Object.entries(data).filter(([id, item]) => item.date === today).reverse().forEach(([id, item]) => {
                 const li = document.createElement('li');
                 li.className = 'log-item';
                 li.innerHTML = `
-                    <div class="who-tag ${item.user}">${item.user}</div>
+                    <div class="who-tag">${item.user}</div>
                     <div class="task-info"><b>${item.task}</b><div class="task-time">${item.time}</div></div>
-                    <span class="del" onclick="delTask('${id}')">×</span>
+                    <span class="del" onclick="rootRef.child('logs').child('${id}').remove()">×</span>
                 `;
                 list.appendChild(li);
             });
         });
 
-        function delTask(id) {
-            if(confirm('确定删除这条记录吗？')) db.child(id).remove();
-        }
-
+        // --- 视图切换与统计 ---
         function switchView(v) {
             document.getElementById('taskList').style.display = v === 'list' ? 'block' : 'none';
             document.getElementById('chartContainer').style.display = v === 'chart' ? 'block' : 'none';
@@ -131,26 +195,37 @@
         }
 
         function updateChart() {
-            db.once('value', snap => {
+            const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
+            db.orderByChild('timestamp').startAt(thirtyDaysAgo).once('value', snap => {
                 const data = snap.val() || {};
-                const stats = { Jerry: 0, momo: 0, hajime: 0 };
-                Object.values(data).forEach(item => { if(stats[item.user] !== undefined) stats[item.user]++; });
+                const stats = {};
+                Object.values(data).forEach(item => {
+                    stats[item.user] = (stats[item.user] || 0) + 1;
+                });
+
                 const ctx = document.getElementById('houseworkChart').getContext('2d');
                 if (myChart) myChart.destroy();
                 myChart = new Chart(ctx, {
                     type: 'pie',
                     data: {
-                        labels: ['Jerry', 'momo', 'hajime'],
-                        datasets: [{ data: [stats.Jerry, stats.momo, stats.hajime], backgroundColor: ['#4da3ff', '#ff85a2', '#ffb84d'] }]
+                        labels: Object.keys(stats),
+                        datasets: [{ 
+                            data: Object.values(stats), 
+                            backgroundColor: ['#6b63ff', '#ff85a2', '#ffb84d', '#4da3ff', '#2ecc71', '#e74c3c'] 
+                        }]
                     },
                     options: { plugins: { legend: { position: 'bottom' } } }
                 });
+                
+                const d = new Date(thirtyDaysAgo);
+                document.getElementById('chartPeriod').innerText = `统计范围：${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()} ~ 至今`;
             });
         }
 
+        // 自动清理一个月前的数据
         function cleanOldData() {
-            const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
-            db.orderByChild('timestamp').endAt(thirtyDaysAgo).once('value', snap => {
+            const sixtyDaysAgo = Date.now() - (60 * 24 * 60 * 60 * 1000); // 留60天余量
+            db.orderByChild('timestamp').endAt(sixtyDaysAgo).once('value', snap => {
                 const old = snap.val();
                 if (old) Object.keys(old).forEach(id => db.child(id).remove());
             });
